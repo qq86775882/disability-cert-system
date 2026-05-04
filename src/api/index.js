@@ -1,64 +1,39 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
-import router from '../router'
 
-const api = axios.create({
-  baseURL: '/api',
-  timeout: 30000
+const http = axios.create({ baseURL: '/api' })
+http.interceptors.request.use(c => {
+  const t = localStorage.getItem('token')
+  if (t) c.headers.Authorization = `Bearer ${t}`
+  return c
+})
+http.interceptors.response.use(r => r, e => {
+  if (e.response?.status === 401) { localStorage.clear(); window.location.href = '/login' }
+  return Promise.reject(e)
 })
 
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+export default {
+  login: (data) => http.post('/auth/login', data),
+  me: () => http.get('/auth/me'),
+  dashboard: () => http.get('/dashboard/stats'),
+  villages: () => http.get('/villages'),
 
-api.interceptors.response.use(
-  res => res.data,
-  err => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('token')
-      router.push('/login')
-    }
-    const msg = err.response?.data?.message || err.message || '请求失败'
-    ElMessage.error(msg)
-    return Promise.reject(err)
-  }
-)
+  // 残疾人证管理
+  certList: (p) => http.get('/certificates', { params: p }),
+  certGet: (id) => http.get(`/certificates/${id}`),
+  certUpdate: (id, data) => http.put(`/certificates/${id}`, data),
+  certLookup: (id_card) => http.get('/certificates/lookup', { params: { id_card } }),
+  certExport: (p) => http.get('/certificates/export', { params: p, responseType: 'blob' }),
+  certImport: (data) => http.post('/certificates/import', { data }),
+  certTemplate: () => http.get('/certificates/template', { responseType: 'blob' }),
 
-// --- Auth ---
-export const login = data => api.post('/auth/login', data)
-export const getMe = () => api.get('/auth/me')
-
-// --- Dashboard ---
-export const getStats = () => api.get('/dashboard/stats')
-
-// --- Issuances ---
-export const getIssuances = params => api.get('/issuances', { params })
-export const getIssuanceDetail = id => api.get(`/issuances/${id}`)
-export const createIssuance = data => api.post('/issuances', data)
-export const updateIssuance = (id, data) => api.put(`/issuances/${id}`, data)
-export const issueCert = (id, data) => api.post(`/issuances/${id}/issue`, data)
-export const reissueCert = (id, data) => api.post(`/issuances/${id}/reissue`, data)
-
-// --- Certificates ---
-export const getCertificates = params => api.get('/certificates', { params })
-export const getCertificateDetail = id => api.get(`/certificates/${id}`)
-export const updateCertificate = (id, data) => api.put(`/certificates/${id}`, data)
-export const getAlerts = () => api.get('/certificates/alerts')
-
-// --- Export / Import URLs ---
-export const getIssuancesExportUrl = params => {
-  const p = new URLSearchParams(params).toString()
-  return `/api/issuances/export?${p}`
+  // 发证管理
+  issList: (p) => http.get('/issuances', { params: p }),
+  issCreate: (data) => http.post('/issuances', data),
+  issGet: (id) => http.get(`/issuances/${id}`),
+  issApprove: (id) => http.post(`/issuances/${id}/approve`),
+  issReject: (id, reason) => http.post(`/issuances/${id}/reject`, { reason }),
+  issIssue: (id, data) => http.post(`/issuances/${id}/issue`, data),
+  issExport: (p) => http.get('/issuances/export', { params: p, responseType: 'blob' }),
+  issImport: (data) => http.post('/issuances/import', { data }),
+  issTemplate: () => http.get('/issuances/template', { responseType: 'blob' }),
 }
-export const getCertificatesExportUrl = params => {
-  const p = new URLSearchParams(params).toString()
-  return `/api/certificates/export?${p}`
-}
-export const importIssuances = formData => api.post('/issuances/import', formData, {
-  headers: { 'Content-Type': 'multipart/form-data' }
-})
-export const importCertificates = formData => api.post('/certificates/import', formData, {
-  headers: { 'Content-Type': 'multipart/form-data' }
-})
